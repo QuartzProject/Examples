@@ -1,0 +1,5 @@
+// What the fleet host offers its pilot script.
+
+fn targetX() -> float
+fn targetY() -> float
+fn radio(ship: int, text: str)

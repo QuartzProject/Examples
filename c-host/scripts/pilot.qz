@@ -1,0 +1,34 @@
+// Steers every ship towards the beacon. Edit and save while `fleet` runs: `Fleet` survives the reload.
+import org.quartzlang.math.sqrt
+
+state Fleet {
+    steps: int
+    arrived: Map<int, bool>
+    maxSpeed: float = 0.8
+}
+
+struct Thrust {
+    dx: float
+    dy: float
+}
+
+pub fn steer(fleet: Fleet, ship: int, x: float, y: float) -> Thrust {
+    fleet.steps += 1
+    let dx = targetX() - x
+    let dy = targetY() - y
+    let distance = sqrt(dx * dx + dy * dy)
+    if distance < 0.5 {
+        if !(fleet.arrived.get(ship) ?? false) {
+            fleet.arrived[ship] = true
+            radio(ship, "at the beacon (fleet step {fleet.steps})")
+        }
+        return Thrust(0.0, 0.0)
+    }
+    fleet.arrived.remove(ship)
+    let speed = if distance < fleet.maxSpeed {
+        distance
+    } else {
+        fleet.maxSpeed
+    }
+    return Thrust(dx / distance * speed, dy / distance * speed)
+}
