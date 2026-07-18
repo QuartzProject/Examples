@@ -1,0 +1,137 @@
+// Traits with default methods, generic functions bounded by them, and the four derivable language traits.
+package org.quartzlang.examples.traits
+
+trait Shape {
+    fn area(self) -> float
+    fn name(self) -> str
+
+    fn describe(self) -> str {
+        return "{self.name()} with area {self.area():.2}"
+    }
+}
+
+@derive(Eq, Show)
+struct Circle {
+    radius: float
+}
+
+@derive(Eq, Show)
+struct Rect {
+    width: float
+    height: float
+}
+
+impl Shape for Circle {
+    fn area(self) -> float {
+        return 3.14159 * self.radius * self.radius
+    }
+
+    fn name(self) -> str {
+        return "circle"
+    }
+}
+
+impl Shape for Rect {
+    fn area(self) -> float {
+        return self.width * self.height
+    }
+
+    fn name(self) -> str {
+        return if self.width == self.height {
+            "square"
+        } else {
+            "rectangle"
+        }
+    }
+
+    fn describe(self) -> str {
+        return "{self.width}x{self.height} {self.name()}"
+    }
+}
+
+fn largest<T: Shape>(shapes: [T]) -> T? {
+    var best: T? = null
+    for s in shapes {
+        if let b = best {
+            if s.area() > b.area() {
+                best = s
+            }
+        } else {
+            best = s
+        }
+    }
+    return best
+}
+
+fn totalArea<T: Shape>(shapes: [T]) -> float {
+    var sum = 0.0
+    for s in shapes {
+        sum += s.area()
+    }
+    return sum
+}
+
+@derive(Eq, Hash, Ord, Show)
+struct Version {
+    major: int
+    minor: int
+    patch: int
+}
+
+impl Version {
+    fn parse(text: str) -> Version? {
+        let parts = text.split(".")
+        if parts.len() != 3 {
+            return null
+        }
+        let major = parts[0].toInt() ?? -1
+        let minor = parts[1].toInt() ?? -1
+        let patch = parts[2].toInt() ?? -1
+        if major < 0 || minor < 0 || patch < 0 {
+            return null
+        }
+        return Version(major, minor, patch)
+    }
+}
+
+trait Loud {
+    fn loud(self) -> str
+}
+
+impl Loud for str {
+    fn loud(self) -> str {
+        return "{self.upper()}!"
+    }
+}
+
+fn main() -> int {
+    let circles = [Circle(1.0), Circle(2.5), Circle(0.5)]
+    let rects = [Rect(2.0, 3.0), Rect(4.0, 4.0)]
+    for c in circles {
+        print(c.describe())
+    }
+    for r in rects {
+        print(r.describe())
+    }
+    print("largest circle: {largest(circles)}")
+    print("total rect area: {totalArea(rects)}")
+
+    var versions: [Version] = []
+    for text in ["1.10.0", "1.2.3", "0.9.12", "1.2.10", "not.a.version"] {
+        if let v = Version.parse(text) {
+            versions.push(v)
+        } else {
+            print("skipped '{text}'")
+        }
+    }
+    versions.sortWith((a, b) => a.cmp(b))
+    print("sorted: {versions}")
+    print("newest: {versions[versions.len() - 1]}")
+    print("1.2.3 < 1.2.10: {Version(1, 2, 3) < Version(1, 2, 10)}")
+
+    let seen: Map<Version, str> = Map()
+    seen[Version(1, 0, 0)] = "first release"
+    print("lookup by value: {seen.get(Version(1, 0, 0)) ?? "missing"}")
+    print("hello".loud())
+    return 0
+}

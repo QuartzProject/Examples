@@ -1,0 +1,58 @@
+// Linear-time regular expressions: named groups, find, replace with references, split, and readable compile errors.
+package org.quartzlang.examples.regex
+
+import org.quartzlang.regex.*
+
+const Log = """2026-11-19 10:02:11 INFO  [net] 203.0.113.7 connected as ada
+2026-11-19 10:02:15 WARN  [db] slow query took 1840ms
+2026-11-19 10:03:01 INFO  [net] 198.51.100.23 connected as bo_7
+2026-11-19 10:04:44 ERROR [db] connection reset by 192.0.2.1
+2026-11-19 10:05:02 WARN  [net] slow handshake took 950ms
+"""
+
+fn main() -> int {
+    let line = compileRegex("^(?P<date>\\S+) (?P<time>\\S+) (?P<level>[A-Z]+)\\s+\\[(?P<area>\\w+)\\] (?P<text>.*)$").unwrap()
+    let counts: Map<str, int> = Map()
+    for entry in Log.split("\n") {
+        if let m = line.find(entry) {
+            let level = m.named("level") ?? "?"
+            counts[level] = (counts.get(level) ?? 0) + 1
+            if level != "INFO" {
+                print("{m.named("time") ?? ""} {level:<5} {m.named("area") ?? ""}: {m.named("text") ?? ""}")
+            }
+        }
+    }
+    print("levels: {counts}")
+
+    let slow = compileRegex("took (\\d+)ms").unwrap()
+    var total = 0
+    for m in slow.findAll(Log) {
+        total += (m.group(1) ?? "0").toInt() ?? 0
+    }
+    print("time in slow operations: {total}ms")
+
+    let users = compileRegex("connected as (?<user>\\w\{3,16})").unwrap()
+    let names = users.findAll(Log).map((m) => m.named("user") ?? "")
+    print("users: {names.join(", ")}")
+
+    let ip = compileRegex("\\b(\\d\{1,3})\\.\\d\{1,3}\\.\\d\{1,3}\\.(\\d\{1,3})\\b").unwrap()
+    print(ip.replaceAll(Log.split("\n")[0], "$1.x.x.$2"))
+
+    let dates = compileRegex("(\\d\{4})-(\\d\{2})-(\\d\{2})").unwrap()
+    print(dates.replace("released 2026-11-19", "$3/$2/$1"))
+
+    let separators = compileRegex("\\s*[,;]\\s*").unwrap()
+    print("{separators.split("ada, bo;cy ;  dee")}")
+    print("{separators.split("a,b,c,d", limit = 2)}")
+
+    let literal = compileRegex(escapeRegex("1+1=2?")).unwrap()
+    print("escaped literal matches: {literal.isMatch("is 1+1=2? yes")}")
+
+    for bad in ["(unclosed", "a\{2000}", "(a)\\1", "[z-a]"] {
+        match compileRegex(bad) {
+            Ok(_) => print("'{bad}' compiled")
+            Err(why) => print("'{bad}' rejected: {why}")
+        }
+    }
+    return 0
+}

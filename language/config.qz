@@ -1,0 +1,98 @@
+// Typed configuration: one set of structs read from TOML, YAML or JSON, with defaults and errors that name the line.
+package org.quartzlang.examples.config
+
+import org.quartzlang.data.*
+import org.quartzlang.time
+
+@derive(Decode, Encode, Eq, Show)
+enum Restart {
+    Never
+    Always
+    OnFailure
+}
+
+@derive(Decode, Encode, Show)
+struct Service {
+    name: str
+    command: [str]
+    restart: Restart = Restart.OnFailure
+    @key("health-check")
+    healthCheck: str?
+    env: Map<str, str> = Map()
+}
+
+@derive(Decode, Encode, Show)
+struct Deployment {
+    project: str
+    replicas: int = 1
+    @key("grace-period")
+    gracePeriod: str = "30s"
+    services: [Service] = []
+}
+
+fn validate(d: Deployment) -> Result<Deployment, str> {
+    if d.replicas < 1 || d.replicas > 50 {
+        return Err("replicas must be between 1 and 50, found {d.replicas}")
+    }
+    if time.Duration.parse(d.gracePeriod) is Err(why) {
+        return Err("grace-period: {why}")
+    }
+    for s in d.services {
+        if s.command.len() == 0 {
+            return Err("service '{s.name}' has an empty command")
+        }
+    }
+    return Ok(d)
+}
+
+fn report(label: str, parsed: Result<Deployment, DecodeError>) {
+    let checked: Result<Deployment, str> = match parsed {
+        Ok(d) => validate(d)
+        Err(e) => Err(e.message())
+    }
+    match checked {
+        Ok(d) => {
+            let names = d.services.map((s) => "{s.name} ({s.restart})")
+            print("{label}: {d.project} x{d.replicas}, grace {d.gracePeriod}, services {names.join(", ")}")
+        }
+        Err(why) => print("{label}: rejected, {why}")
+    }
+}
+
+const Toml = """project = "shop"
+replicas = 3
+
+[[services]]
+name = "web"
+command = ["shop-web", "--port", "8080"]
+health-check = "/healthz"
+env = \{ LOG = "info" }
+
+[[services]]
+name = "worker"
+command = ["shop-worker"]
+restart = "always"
+"""
+
+const Yaml = """project: docs
+grace-period: 2m
+services:
+  - name: site
+    command: [docs-serve]
+    restart: never
+"""
+
+fn main() -> int {
+    report("toml", decodeToml::<Deployment>(Toml))
+    report("yaml", decodeYaml::<Deployment>(Yaml))
+    report("json", decodeJson::<Deployment>("\{\"project\": \"api\", \"replicas\": 80}"))
+    report("bad type", decodeToml::<Deployment>("project = \"x\"\n\n[[services]]\nname = \"a\"\ncommand = \"run\"\n"))
+    report("bad enum", decodeYaml::<Deployment>("project: x\nservices:\n  - name: a\n    command: [a]\n    restart: sometimes\n"))
+    report("bad duration", decodeJson::<Deployment>("\{\"project\": \"api\", \"grace-period\": \"soon\"}"))
+    report("missing key", decodeToml::<Deployment>("replicas = 2\n"))
+
+    let d = decodeToml::<Deployment>(Toml).unwrap()
+    let web = d.services[0] with { restart = Restart.Always }
+    print(encodeJson(web, indent = 2))
+    return 0
+}

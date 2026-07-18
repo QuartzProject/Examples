@@ -1,0 +1,122 @@
+// Parses text commands into enums and acts on them with nested patterns, ranges, `null`, guards and `is` tests.
+package org.quartzlang.examples.patterns
+
+@derive(Eq, Show)
+enum Dir {
+    North
+    South
+    East
+    West
+}
+
+@derive(Show)
+enum Command {
+    Move(Dir, int)
+    Give(str, int?)
+    Say(str)
+    Quit
+}
+
+fn direction(word: str) -> Dir? {
+    return match word.lower() {
+        "n" => Dir.North
+        "north" => Dir.North
+        "s" => Dir.South
+        "south" => Dir.South
+        "e" => Dir.East
+        "east" => Dir.East
+        "w" => Dir.West
+        "west" => Dir.West
+        _ => null
+    }
+}
+
+fn parse(line: str) -> Result<Command, str> {
+    let words = line.trim().split(" ").filter((w) => w.len() > 0)
+    if words.len() == 0 {
+        return Err("empty line")
+    }
+    let verb = words[0]
+    let rest = words.slice(1, words.len())
+    return match (verb, rest.len()) {
+        ("go", 1) => {
+            if let d = direction(rest[0]) {
+                Ok(Command.Move(d, 1))
+            } else {
+                Err("no direction '{rest[0]}'")
+            }
+        }
+        ("go", 2) => match (direction(rest[0]), rest[1].toInt()) {
+            (null, _) => Err("no direction '{rest[0]}'")
+            (_, null) => Err("'{rest[1]}' is not a number of steps")
+            (d, n) => Ok(Command.Move(d.unwrap(), n.unwrap()))
+        }
+        ("give", 1) => Ok(Command.Give(rest[0], null))
+        ("give", 2) => Ok(Command.Give(rest[0], rest[1].toInt()))
+        ("say", n) if n > 0 => Ok(Command.Say(rest.join(" ")))
+        ("quit", 0) => Ok(Command.Quit)
+        (other, _) => Err("unknown command '{other}'")
+    }
+}
+
+struct Pos {
+    x: int
+    y: int
+}
+
+fn step(p: Pos, cmd: Command) -> Pos {
+    return match cmd {
+        Move(North, n) => Pos(p.x, p.y + n)
+        Move(South, n) => Pos(p.x, p.y - n)
+        Move(East, n) => Pos(p.x + n, p.y)
+        Move(West, n) => Pos(p.x - n, p.y)
+        _ => p
+    }
+}
+
+fn describe(cmd: Command) -> str {
+    return match cmd {
+        Move(_, n) if n > 10 => "a long trip"
+        Move(d, 1) => "one step {d}"
+        Move(d, n) => "{n} steps {d}"
+        Give(item, null) => "one {item}"
+        Give(item, 1..=64) => "a stack or less of {item}"
+        Give(item, n) => "{n ?? 0} {item}, more than a stack"
+        Say(text) => "says '{text}'"
+        Quit => "leaves"
+    }
+}
+
+fn place(p: Pos) -> str {
+    return match p {
+        Pos(0, 0) => "home"
+        Pos(0, _) => "on the north-south road"
+        Pos(_, 0) => "on the east-west road"
+        Pos(x, y) if x > 0 && y > 0 => "in the north-east field"
+        _ => "somewhere else"
+    }
+}
+
+fn main() -> int {
+    let script = [
+        "go north 3", "give torch", "give stone 32", "give arrow 200", "go e", "say hello  there", "go up", "go s two",
+        "dance", "go west 20", "quit",
+    ]
+    var pos = Pos(0, 0)
+    var moves = 0
+    for line in script {
+        match parse(line) {
+            Ok(cmd) => {
+                if cmd is Move(_, _) {
+                    moves += 1
+                }
+                pos = step(pos, cmd)
+                let Pos(x, y) = pos
+                print("{line:<18} -> {describe(cmd)}, now at ({x}, {y}) {place(pos)}")
+            }
+            Err(why) => print("{line:<18} -> error: {why}")
+        }
+    }
+    print("{moves} moves")
+    return 0
+}

@@ -1,0 +1,43 @@
+// Coroutines: a `suspend fn` pauses with `wait` and `every` and the host resumes it; `quartz run` counts ticks.
+package org.quartzlang.examples.coroutines
+
+state Clock {
+    tick: int
+}
+
+suspend fn pause(clock: Clock, ticks: int) {
+    wait ticks.ticks
+    clock.tick += ticks
+}
+
+suspend fn countdown(clock: Clock, label: str, from: int) -> int {
+    var left = from
+    every 20.ticks {
+        clock.tick += 20
+        print("[t={clock.tick:>3}] {label} in {left}")
+        left -= 1
+        if left == 0 {
+            break
+        }
+    }
+    return from
+}
+
+suspend fn brew(clock: Clock, potions: [str]) -> [str] {
+    var done: [str] = []
+    for p in potions {
+        pause(clock, 10 * p.len())
+        print("[t={clock.tick:>3}] {p} is ready")
+        done.push(p.upper())
+    }
+    return done
+}
+
+suspend fn main(clock: Clock) -> int {
+    print("[t={clock.tick:>3}] start")
+    let rounds = countdown(clock, "launch", 3)
+    print("[t={clock.tick:>3}] lift off after {rounds} rounds")
+    let potions = brew(clock, ["speed", "night vision", "fire resistance"])
+    print("[t={clock.tick:>3}] brewed {potions.join(", ")}")
+    return 0
+}

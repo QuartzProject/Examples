@@ -1,0 +1,93 @@
+// Lists, maps and the collections package on a small order book: lambdas, sets, sorted maps, queues and a cache.
+package org.quartzlang.examples.collections
+
+import org.quartzlang.collections.*
+
+@derive(Eq, Show)
+struct Order {
+    id: int
+    buyer: str
+    item: str
+    quantity: int
+    price: int
+}
+
+@derive(Eq, Hash, Ord, Show)
+struct Job {
+    due: int
+    name: str
+}
+
+fn orders() -> [Order] {
+    return [
+        Order(1, "ada", "pickaxe", 1, 120),
+        Order(2, "bo", "torch", 64, 2),
+        Order(3, "ada", "torch", 16, 2),
+        Order(4, "cy", "saddle", 1, 300),
+        Order(5, "bo", "pickaxe", 2, 110),
+        Order(6, "dee", "bread", 12, 5),
+    ]
+}
+
+fn main() -> int {
+    let all = orders()
+
+    let big = all.filter((o) => o.quantity * o.price >= 200).map((o) => "#{o.id}")
+    print("big orders: {big.join(", ")}")
+    print("anyone bought bread: {all.any((o) => o.item == "bread")}")
+    print("first torch buyer: {all.find((o) => o.item == "torch")?.buyer ?? "nobody"}")
+
+    let spent: Map<str, int> = Map()
+    for o in all {
+        spent[o.buyer] = (spent.get(o.buyer) ?? 0) + o.quantity * o.price
+    }
+    for buyer, total in spent {
+        print("{buyer:<4} spent {total:>4}")
+    }
+
+    var ranking = spent.keys()
+    ranking.sortBy((b) => -(spent[b]))
+    print("ranking: {ranking.join(" > ")}")
+
+    let items = setOf(all.map((o) => o.item))
+    let tools = setOf(["pickaxe", "saddle", "shears"])
+    print("items: {items}")
+    print("tools sold: {items.intersect(tools)}, never sold: {tools.difference(items)}")
+
+    let byPrice = SortedMap::<int, str>()
+    for o in all {
+        byPrice.set(o.price, o.item)
+    }
+    print("cheapest: {byPrice.first()}, priciest: {byPrice.last()}")
+    print("at most 100: {byPrice.floor(100)}")
+    for e in byPrice.range(5, 200) {
+        let (price, item) = e
+        print("  {item} at {price}")
+    }
+
+    let queue = PriorityQueue::<Job>()
+    queue.push(Job(30, "restock torches"))
+    queue.push(Job(5, "pay ada"))
+    queue.push(Job(12, "ship saddle"))
+    while !queue.isEmpty() {
+        let job = queue.pop().unwrap()
+        print("t={job.due:>2} {job.name}")
+    }
+
+    let recent = Deque::<int>()
+    for o in all {
+        recent.pushBack(o.id)
+        if recent.len() > 3 {
+            recent.popFront()
+        }
+    }
+    print("last three orders: {recent}")
+
+    let cache = LruCache::<str, int>(2)
+    cache.set("ada", 1)
+    cache.set("bo", 2)
+    cache.get("ada")
+    let evicted = cache.set("cy", 3)
+    print("evicted: {evicted}, still cached: {cache.peek("ada")}")
+    return 0
+}
