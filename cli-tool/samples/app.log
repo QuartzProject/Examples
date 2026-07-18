@@ -1,0 +1,14 @@
+2026-11-19 10:02:11 INFO  [net] 203.0.113.7 connected as ada
+2026-11-19 10:02:12 DEBUG [cache] warmed 1200 entries in 35ms
+2026-11-19 10:02:15 WARN  [db] slow query took 1840ms
+2026-11-19 10:03:01 INFO  [net] 198.51.100.23 connected as bo
+2026-11-19 10:03:40 INFO  [shop] order 1042 paid
+2026-11-19 10:04:44 ERROR [db] connection reset by peer after 3 retries
+2026-11-19 10:04:45 WARN  [db] slow query took 2210ms
+2026-11-19 10:05:02 WARN  [net] slow handshake took 950ms
+2026-11-19 10:05:30 INFO  [shop] order 1043 paid
+2026-11-19 10:06:12 INFO  [net] 192.0.2.44 connected as cy
+this line is not a log entry
+2026-11-19 10:07:01 ERROR [shop] payment 'card-7731' declined
+2026-11-19 10:07:15 INFO  [shop] order 1044 paid
+2026-11-19 10:08:00 WARN  [db] slow query took 1510ms

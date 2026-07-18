@@ -1,0 +1,7 @@
+10:15:01.120 [main] INFO  org.example.Worker - starting 4 threads
+10:15:01.350 [pool-1] DEBUG org.example.Queue - polled 0 jobs
+10:15:02.004 [pool-2] INFO  org.example.Worker - job 77 done in 120ms
+10:15:02.900 [pool-3] WARN  org.example.Worker - job 78 retried 2 times
+10:15:03.441 [pool-1] INFO  org.example.Worker - job 79 done in 98ms
+10:15:04.012 [pool-4] ERROR org.example.Worker - job 80 failed: timeout after 30000ms
+10:15:05.230 [pool-2] INFO  org.example.Worker - job 81 done in 101ms

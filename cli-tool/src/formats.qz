@@ -1,0 +1,134 @@
+// Log formats: a regular expression with named groups per format, built in or read from a TOML file.
+package org.quartzlang.examples.qlog
+
+import org.quartzlang.data.*
+import org.quartzlang.regex.*
+
+@derive(Eq, Ord, Show)
+internal enum Level {
+    Trace
+    Debug
+    Info
+    Warn
+    Error
+}
+
+@derive(Decode)
+internal struct FormatSpec {
+    name: str
+    pattern: str
+}
+
+@derive(Decode)
+internal struct FormatFile {
+    formats: [FormatSpec] = []
+}
+
+internal struct Format {
+    name: str
+    regex: Regex
+    hasTime: bool
+    hasSource: bool
+}
+
+internal struct Entry {
+    level: Level
+    source: str
+    time: str
+    message: str
+}
+
+internal fn levelOf(text: str) -> Level? {
+    return match text.upper() {
+        "TRACE" => Level.Trace
+        "FINEST" => Level.Trace
+        "DEBUG" => Level.Debug
+        "FINE" => Level.Debug
+        "INFO" => Level.Info
+        "NOTICE" => Level.Info
+        "WARN" => Level.Warn
+        "WARNING" => Level.Warn
+        "ERROR" => Level.Error
+        "ERR" => Level.Error
+        "SEVERE" => Level.Error
+        "FATAL" => Level.Error
+        _ => null
+    }
+}
+
+internal fn builtinFormats() -> [FormatSpec] {
+    let day = "\\d\{4}-\\d\{2}-\\d\{2}"
+    let clock = "\\d\{2}:\\d\{2}:\\d\{2}"
+    let source = "\\[(?P<source>[^\\]]+)\\]"
+    let message = "(?P<message>.*)$"
+    return [
+        FormatSpec("app", "^(?P<time>{day}[ T]{clock})\\S* +(?P<level>[A-Za-z]+) +{source} {message}"),
+        FormatSpec("logback", "^(?P<time>{clock}\\.\\d\{3}) {source} (?P<level>[A-Z]+) +\\S+ - {message}"),
+        FormatSpec("bracket", "^\\[(?P<time>{clock}) (?P<level>[A-Z]+)\\]: (?:{source} )?{message}"),
+    ]
+}
+
+// Match.named panics on a name the pattern lacks, so optional groups are looked for in the pattern text.
+fn hasGroup(pattern: str, name: str) -> bool {
+    return pattern.contains("(?P<{name}>") || pattern.contains("(?<{name}>")
+}
+
+/// Compiles every format, checking that each pattern has the groups the analyzer reads.
+internal fn compileFormats(specs: [FormatSpec]) -> Result<[Format], str> {
+    var out: [Format] = []
+    for spec in specs {
+        let regex = match compileRegex(spec.pattern) {
+            Ok(r) => r
+            Err(why) => return Err("format '{spec.name}': {why}")
+        }
+        if !hasGroup(spec.pattern, "level") || !hasGroup(spec.pattern, "message") {
+            return Err("format '{spec.name}' needs the groups (?P<level>...) and (?P<message>...)")
+        }
+        out.push(Format(spec.name, regex, hasGroup(spec.pattern, "time"), hasGroup(spec.pattern, "source")))
+    }
+    return Ok(out)
+}
+
+internal fn readFormatFile(text: str) -> Result<[FormatSpec], str> {
+    return match decodeToml::<FormatFile>(text) {
+        Ok(file) => Ok(file.formats)
+        Err(e) => Err(e.message())
+    }
+}
+
+internal fn parseLine(format: Format, line: str) -> Entry? {
+    let m = format.regex.find(line)?
+    let level = levelOf(m.named("level") ?? "")?
+    let source = if format.hasSource {
+        m.named("source") ?? "-"
+    } else {
+        "-"
+    }
+    let time = if format.hasTime {
+        m.named("time") ?? ""
+    } else {
+        ""
+    }
+    return Entry(level, source, time, m.named("message") ?? "")
+}
+
+/// The format that parses the most of the first lines, or null when none parses any.
+internal fn detect(formats: [Format], lines: [str]) -> Format? {
+    var best: Format? = null
+    var bestHits = 0
+    for f in formats {
+        var hits = 0
+        var i = 0
+        while i < lines.len() && i < 50 {
+            if let _entry = parseLine(f, lines[i]) {
+                hits += 1
+            }
+            i += 1
+        }
+        if hits > bestHits {
+            best = f
+            bestHits = hits
+        }
+    }
+    return best
+}

@@ -1,0 +1,142 @@
+// What the analyzer counts while it reads, and the two ways it prints the result.
+package org.quartzlang.examples.qlog
+
+import org.quartzlang.data.*
+import org.quartzlang.regex.*
+
+@derive(Encode)
+internal struct Count {
+    name: str
+    count: int
+}
+
+@derive(Encode)
+internal struct FirstError {
+    file: str
+    line: int
+    time: str
+    message: str
+}
+
+@derive(Encode)
+internal struct FileSummary {
+    file: str
+    format: str
+    lines: int
+    parsed: int
+}
+
+@derive(Encode)
+internal struct Report {
+    files: [FileSummary] = []
+    matched: int = 0
+    levels: [Count] = []
+    sources: [Count] = []
+    messages: [Count] = []
+    firstError: FirstError?
+}
+
+internal struct Tally {
+    levels: Map<str, int>
+    sources: Map<str, int>
+    messages: Map<str, int>
+    matched: int
+    worst: Level?
+    firstError: FirstError?
+    files: [FileSummary]
+}
+
+internal fn newTally() -> Tally {
+    return Tally(Map(), Map(), Map(), 0, null, null, [])
+}
+
+fn bump(counts: Map<str, int>, key: str) {
+    counts[key] = (counts.get(key) ?? 0) + 1
+}
+
+/// Numbers, quoted text and hex ids vary between otherwise equal messages, so they are folded before counting.
+internal fn shape(numbers: Regex, message: str) -> str {
+    return numbers.replaceAll(message, "#")
+}
+
+internal fn add(tally: Tally, file: str, line: int, entry: Entry, numbers: Regex) -> Tally {
+    bump(tally.levels, "{entry.level}")
+    bump(tally.sources, entry.source)
+    bump(tally.messages, shape(numbers, entry.message))
+    var worst = tally.worst
+    if worst == null || entry.level > (worst ?? Level.Trace) {
+        worst = entry.level
+    }
+    var first = tally.firstError
+    if first is null && entry.level == Level.Error {
+        first = FirstError(file, line, entry.time, entry.message)
+    }
+    return tally with {
+        matched = tally.matched + 1
+        worst = worst
+        firstError = first
+    }
+}
+
+fn ranked(counts: Map<str, int>, limit: int) -> [Count] {
+    var all: [Count] = []
+    for name, count in counts {
+        all.push(Count(name, count))
+    }
+    all.sortBy((c) => -c.count)
+    return if limit > 0 && all.len() > limit {
+        all.slice(0, limit)
+    } else {
+        all
+    }
+}
+
+internal fn finish(tally: Tally, top: int) -> Report {
+    var levels: [Count] = []
+    for level in [Level.Error, Level.Warn, Level.Info, Level.Debug, Level.Trace] {
+        if let n = tally.levels.get("{level}") {
+            levels.push(Count("{level}".upper(), n))
+        }
+    }
+    return Report(
+        tally.files, tally.matched, levels, ranked(tally.sources, top), ranked(tally.messages, top),
+        tally.firstError,
+    )
+}
+
+fn counts(items: [Count]) -> str {
+    return if items.len() == 0 {
+        "none"
+    } else {
+        items.map((c) => "{c.name} {c.count}").join(", ")
+    }
+}
+
+internal fn renderText(r: Report) -> str {
+    var out: [str] = []
+    for f in r.files {
+        out.push("{f.file}: {f.lines} lines, {f.parsed} parsed as '{f.format}'")
+    }
+    out.push("matched: {r.matched}")
+    out.push("levels:  {counts(r.levels)}")
+    out.push("sources: {counts(r.sources)}")
+    if r.messages.len() > 0 {
+        out.push("top messages:")
+        for c in r.messages {
+            out.push("  {c.count:>5}  {c.name}")
+        }
+    }
+    if let e = r.firstError {
+        let stamp = if e.time.len() > 0 {
+            " at {e.time}"
+        } else {
+            ""
+        }
+        out.push("first error{stamp}: {e.file}:{e.line}: {e.message}")
+    }
+    return out.join("\n")
+}
+
+internal fn renderJson(r: Report) -> str {
+    return encodeJson(r, indent = 2)
+}

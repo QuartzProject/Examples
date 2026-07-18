@@ -1,0 +1,263 @@
+// qlog: summarizes log files offline. Arguments, help and exit codes; the work is in formats.qz and report.qz.
+package org.quartzlang.examples.qlog
+
+import org.quartzlang.embed.fs
+import org.quartzlang.embed.process.args
+import org.quartzlang.embed.terminal.{eprintln, println, readLine}
+import org.quartzlang.regex.*
+
+const Version = "qlog 0.1.0"
+const ExitOk = 0
+const ExitFailed = 1
+const ExitUsage = 2
+const ExitThreshold = 3
+
+const Help = """usage: qlog [options] <file>...
+
+Summarizes log files: lines per level and source, the most frequent messages (numbers folded into #) and the first
+error. '-' reads standard input. Files are read relative to the current directory and cannot be outside it.
+
+options:
+  -l, --level LEVEL     count only lines at LEVEL or above (trace, debug, info, warn, error)
+  -g, --grep REGEX      count only lines whose message matches REGEX
+  -t, --top N           show the N most frequent sources and messages (default 5, 0 for all)
+  -c, --config FILE     extra log formats in TOML; qlog.toml is read when it exists
+  -f, --format NAME     parse with this format instead of detecting one per file
+      --json            print the report as JSON
+      --fail-on LEVEL   exit with 3 when any counted line is at LEVEL or above
+  -h, --help            show this help
+      --version         show the version
+
+exit codes: 0 done, 1 a file or the configuration could not be read, 2 bad usage, 3 --fail-on matched
+"""
+
+struct Options {
+    files: [str] = []
+    level: Level = Level.Trace
+    grep: Regex? = null
+    top: int = 5
+    config: str? = null
+    format: str? = null
+    json: bool = false
+    failOn: Level? = null
+}
+
+enum Parsed {
+    Run(Options)
+    Done(int)
+}
+
+fn usage(message: str) -> Parsed {
+    eprintln("qlog: {message}")
+    eprintln("try 'qlog --help'")
+    return Parsed.Done(ExitUsage)
+}
+
+fn longName(arg: str) -> str {
+    return match arg {
+        "-l" => "--level"
+        "-g" => "--grep"
+        "-t" => "--top"
+        "-c" => "--config"
+        "-f" => "--format"
+        "-h" => "--help"
+        _ => arg
+    }
+}
+
+fn parseArgs(argv: [str]) -> Parsed {
+    var o = Options()
+    var i = 0
+    while i < argv.len() {
+        var arg = longName(argv[i])
+        var inline: str? = null
+        if arg.startsWith("--") {
+            if let eq = arg.find("=") {
+                inline = arg.slice(eq + 1, arg.len())
+                arg = arg.slice(0, eq)
+            }
+        }
+        let takesValue = ["--level", "--grep", "--top", "--config", "--format", "--fail-on"].contains(arg)
+        var value = inline ?? ""
+        if takesValue && inline == null {
+            if i + 1 >= argv.len() {
+                return usage("{arg} needs a value")
+            }
+            i += 1
+            value = argv[i]
+        } else if !takesValue && inline != null {
+            return usage("{arg} takes no value")
+        }
+        match arg {
+            "--help" => {
+                println(Help.trimEnd())
+                return Parsed.Done(ExitOk)
+            }
+            "--version" => {
+                println(Version)
+                return Parsed.Done(ExitOk)
+            }
+            "--json" => o.json = true
+            "--level" => {
+                if let level = levelOf(value) {
+                    o.level = level
+                } else {
+                    return usage("unknown level '{value}'")
+                }
+            }
+            "--fail-on" => {
+                if let level = levelOf(value) {
+                    o.failOn = level
+                } else {
+                    return usage("unknown level '{value}'")
+                }
+            }
+            "--top" => {
+                if let n = value.toInt() {
+                    o.top = n
+                } else {
+                    return usage("--top wants a number, not '{value}'")
+                }
+            }
+            "--grep" => {
+                match compileRegex(value) {
+                    Ok(r) => o.grep = r
+                    Err(why) => return usage("bad --grep pattern: {why}")
+                }
+            }
+            "--config" => o.config = value
+            "--format" => o.format = value
+            _ => {
+                if arg.startsWith("-") && arg != "-" {
+                    return usage("unknown option '{arg}'")
+                }
+                o.files.push(arg)
+            }
+        }
+        i += 1
+    }
+    if o.files.len() == 0 {
+        return usage("no input files")
+    }
+    return Parsed.Run(o)
+}
+
+fn loadFormats(o: Options) -> Result<[Format], str> {
+    var specs = builtinFormats()
+    let path = o.config ?? "qlog.toml"
+    if o.config != null || fs.isFile(path) {
+        let text = fs.readText(path) ?? ""
+        if !fs.isFile(path) {
+            return Err("{path}: no such file")
+        }
+        match readFormatFile(text) {
+            Ok(extra) => specs.insertAll(0, extra)
+            Err(why) => return Err("{path}: {why}")
+        }
+    }
+    return compileFormats(specs)
+}
+
+fn readInput(name: str) -> str? {
+    if name != "-" {
+        return fs.readText(name)
+    }
+    var lines: [str] = []
+    while true {
+        if let line = readLine() {
+            lines.push(line)
+        } else {
+            break
+        }
+    }
+    return lines.join("\n")
+}
+
+fn choose(o: Options, formats: [Format], lines: [str]) -> Result<Format, str> {
+    if let wanted = o.format {
+        if let f = formats.find((f) => f.name == wanted) {
+            return Ok(f)
+        }
+        return Err("no format named '{wanted}' (known: {formats.map((f) => f.name).join(", ")})")
+    }
+    if let f = detect(formats, lines) {
+        return Ok(f)
+    }
+    return Err("no known format matches; describe it in qlog.toml")
+}
+
+fn analyze(o: Options) -> int {
+    let formats = match loadFormats(o) {
+        Ok(f) => f
+        Err(why) => {
+            eprintln("qlog: {why}")
+            return ExitFailed
+        }
+    }
+    let numbers = compileRegex("0x[0-9a-fA-F]+|\\d+(\\.\\d+)*|'[^']*'|\"[^\"]*\"").unwrap()
+    var tally = newTally()
+    var failed = false
+    for name in o.files {
+        if name.startsWith("/") || name.split("/").contains("..") {
+            eprintln("qlog: {name}: only files under the current directory can be read")
+            failed = true
+            continue
+        }
+        if name != "-" && !fs.isFile(name) {
+            eprintln("qlog: {name}: no such file")
+            failed = true
+            continue
+        }
+        let lines = (readInput(name) ?? "").split("\n")
+        let format = match choose(o, formats, lines) {
+            Ok(f) => f
+            Err(why) => {
+                eprintln("qlog: {name}: {why}")
+                failed = true
+                continue
+            }
+        }
+        var parsed = 0
+        for i, line in lines {
+            if let entry = parseLine(format, line) {
+                parsed += 1
+                let wanted = entry.level >= o.level && (o.grep?.isMatch(entry.message) ?? true)
+                if wanted {
+                    tally = add(tally, name, i + 1, entry, numbers)
+                }
+            }
+        }
+        let total = if lines.len() > 0 && lines[lines.len() - 1] == "" {
+            lines.len() - 1
+        } else {
+            lines.len()
+        }
+        tally.files.push(FileSummary(name, format.name, total, parsed))
+    }
+    if tally.files.len() > 0 {
+        let report = finish(tally, o.top)
+        println(if o.json {
+            renderJson(report)
+        } else {
+            renderText(report)
+        })
+    }
+    if failed {
+        return ExitFailed
+    }
+    if let threshold = o.failOn {
+        if let worst = tally.worst {
+            if worst >= threshold {
+                return ExitThreshold
+            }
+        }
+    }
+    return ExitOk
+}
+
+fn main() -> int {
+    return match parseArgs(args()) {
+        Done(code) => code
+        Run(o) => analyze(o)
+    }
+}

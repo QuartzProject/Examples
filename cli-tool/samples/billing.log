@@ -1,0 +1,4 @@
+2026-11-19T10:00:00Z | info  | billing | invoice 501 created
+2026-11-19T10:00:03Z | info  | billing | invoice 502 created
+2026-11-19T10:01:10Z | warning | gateway | retrying charge 9001
+2026-11-19T10:01:12Z | error | gateway | charge 9001 failed with code 51

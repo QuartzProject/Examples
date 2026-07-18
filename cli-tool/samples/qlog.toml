@@ -1,0 +1,6 @@
+# Extra formats for qlog, tried before the built-in ones. Each needs the groups level and message;
+# time and source are optional. TOML literal strings ('...') keep backslashes as they are.
+
+[[formats]]
+name = "pipes"
+pattern = '^(?P<time>\S+) \| (?P<level>\w+) +\| (?P<source>\w+) \| (?P<message>.*)$'
