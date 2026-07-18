@@ -1,0 +1,74 @@
+// The arena's behaviour. Save this file while the arena runs: it is reloaded and `Arena` keeps its values.
+import org.quartzlang.math.{cos, sin, sqrt}
+import org.quartzlang.random.Random
+
+state Arena {
+    rng: Random = Random(2026)
+    spawned: int
+    caught: int
+    zombieSpeed: float = 0.3
+}
+
+const SpawnEvery = 12
+const MaxZombies = 4
+
+pub fn tick(arena: Arena, n: int) {
+    let hero = player()
+    let angle = n as float * 0.06
+    hero.x = width() / 2.0 + cos(angle) * width() / 3.0
+    hero.y = height() / 2.0 + sin(angle) * height() / 3.0
+    if n % SpawnEvery == 0 && count("zombie") < MaxZombies {
+        spawnAtEdge(arena)
+    }
+    if n == 1 {
+        spawn("villager", 4.0, 3.0)
+        spawn("villager", width() - 5.0, height() - 3.0)
+    }
+}
+
+pub fn think(arena: Arena, e: Entity) {
+    match e.kind {
+        "zombie" => chase(arena, e)
+        "villager" => wander(arena, e)
+        _ => return
+    }
+}
+
+fn spawnAtEdge(arena: Arena) {
+    let side = arena.rng.nextInt(4)
+    let along = arena.rng.nextFloat()
+    let x = if side < 2 {
+        along * width()
+    } else {
+        (side - 2) as float * (width() - 1.0)
+    }
+    let y = if side < 2 {
+        side as float * (height() - 1.0)
+    } else {
+        along * height()
+    }
+    let z = spawn("zombie", x, y)
+    arena.spawned += 1
+    z.say("braaains (zombie number {arena.spawned})")
+}
+
+fn chase(arena: Arena, z: Entity) {
+    let hero = player()
+    let dx = hero.x - z.x
+    let dy = hero.y - z.y
+    let distance = sqrt(dx * dx + dy * dy)
+    if distance < 1.0 {
+        hero.hp -= 1
+        arena.caught += 1
+        hero.say("caught by zombie #{z.id}, {hero.hp} hp left")
+        despawn(z)
+        return
+    }
+    z.x += dx / distance * arena.zombieSpeed
+    z.y += dy / distance * arena.zombieSpeed
+}
+
+fn wander(arena: Arena, v: Entity) {
+    v.x += (arena.rng.nextFloat() - 0.5) * 0.8
+    v.y += (arena.rng.nextFloat() - 0.5) * 0.4
+}

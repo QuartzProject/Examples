@@ -1,0 +1,30 @@
+// What the arena offers its script: entities as handles, and a few queries about the world.
+
+@handle
+struct Entity {}
+
+impl Entity {
+    @property
+    fn id(self) -> int
+    @property
+    fn kind(self) -> str
+    @property
+    fn alive(self) -> bool
+    @property
+    fn x(self) -> float
+    fn setX(self, value: float)
+    @property
+    fn y(self) -> float
+    fn setY(self, value: float)
+    @property
+    fn hp(self) -> int
+    fn setHp(self, value: int)
+    fn say(self, text: str)
+}
+
+fn player() -> Entity
+fn spawn(kind: str, x: float, y: float) -> Entity
+fn despawn(entity: Entity)
+fn count(kind: str) -> int
+fn width() -> float
+fn height() -> float
