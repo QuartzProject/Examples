@@ -1,0 +1,43 @@
+// Join and quit messages, the first visit, and block protection. The host calls these from its listeners.
+package org.quartzlang.examples.paper.scripts
+
+import org.quartzlang.examples.paper.*
+
+/// Greets a player and returns the join message everybody sees.
+pub fn onJoin(player: Player) -> str {
+    player.send("<gold>Welcome, {player.name()}!")
+    player.send("<gray>Everything you just read came from a Quartz script.")
+    if !player.hasPlayedBefore() {
+        player.toSpawn()
+        player.playSound("entity.player.levelup")
+        player.actionBar("<gold>Welcome to the server")
+        broadcast("<yellow>{player.name()} <gray>is here for the first time")
+    }
+    log("{player.name()} joined, greeted from Quartz")
+    return "<green>+ <white>{player.name()}"
+}
+
+pub fn onQuit(player: Player) -> str {
+    return "<red>- <white>{player.name()}"
+}
+
+fn protectedBlocks() -> [str] {
+    return ["bedrock", "end_portal_frame", "spawner"]
+}
+
+/// Whether the player may break a block of this material (a lowercase Minecraft name such as `stone`).
+pub fn canBreak(player: Player, material: str) -> bool {
+    if protectedBlocks().contains(material) && !player.hasPermission("quartzexample.protected") {
+        player.send("<red>That block is protected.")
+        return false
+    }
+    return true
+}
+
+pub fn canPlace(player: Player, material: str) -> bool {
+    if material == "tnt" && !player.hasPermission("quartzexample.tnt") {
+        player.send("<red>No TNT here.")
+        return false
+    }
+    return true
+}

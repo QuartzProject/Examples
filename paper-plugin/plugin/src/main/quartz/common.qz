@@ -1,0 +1,38 @@
+// Small helpers every command uses.
+package org.quartzlang.examples.paper.scripts
+
+import org.quartzlang.examples.paper.*
+
+internal fn findPlayer(name: str) -> Player? {
+    return onlinePlayers().find((p) => p.name().equalsIgnoreCase(name))
+}
+
+/// The player running the command, or null after telling a console sender it cannot do `what`.
+internal fn requirePlayer(sender: Sender, what: str) -> Player? {
+    if sender.isPlayer() {
+        return sender.player()
+    }
+    sender.send("<red>Only a player can {what}.")
+    return null
+}
+
+/// False, after saying so, when the sender lacks the permission.
+internal fn allowed(sender: Sender, node: str) -> bool {
+    if sender.hasPermission(node) {
+        return true
+    }
+    sender.send("<red>You cannot use that.")
+    return false
+}
+
+internal fn joinFrom(args: [str], first: int) -> str {
+    return args.slice(first, args.len()).join(" ")
+}
+
+internal fn startingWith(names: [str], prefix: str) -> [str] {
+    return names.filter((n) => n.lower().startsWith(prefix.lower()))
+}
+
+internal fn playerNames() -> [str] {
+    return onlinePlayers().map((p) => p.name())
+}

@@ -1,0 +1,69 @@
+// The commands this plugin offers. The host registers each name with Paper and sends every run back here.
+package org.quartzlang.examples.paper.scripts
+
+import org.quartzlang.examples.paper.*
+
+/// Every command as "name|description".
+pub fn commands() -> [str] {
+    return [
+        "greet|Greets a player by name",
+        "quartzinfo|Reports what is running these commands",
+        "whois|Tells you about a player",
+        "heal|Fills the health and hunger of a player",
+        "kit|Hands you a kit from kits.toml",
+        "sethome|Remembers where you are standing",
+        "home|Takes you back to your home",
+        "delhome|Forgets your home",
+        "setwarp|Names the spot you are standing on",
+        "warp|Travels to a named warp, or lists them",
+        "delwarp|Removes a warp",
+        "msg|Writes privately to a player",
+        "r|Answers whoever wrote to you last",
+        "announce|Broadcasts a coloured message",
+    ]
+}
+
+pub fn run(
+    homes: Homes, warps: Warps, cooldowns: Cooldowns, talk: Conversations, sender: Sender, command: str,
+    args: [str],
+) {
+    match command {
+        "greet" => greet(sender, args)
+        "quartzinfo" => info(sender)
+        "whois" => whois(sender, args)
+        "heal" => heal(sender, args)
+        "kit" => kit(cooldowns, sender, args)
+        "sethome" => setHome(homes, sender)
+        "home" => home(homes, sender)
+        "delhome" => delHome(homes, sender)
+        "setwarp" => setWarp(warps, sender, args)
+        "warp" => warp(warps, sender, args)
+        "delwarp" => delWarp(warps, sender, args)
+        "msg" => msg(talk, sender, args)
+        "r" => reply(talk, sender, args)
+        "announce" => announce(sender, args)
+        _ => sender.send("<red>This plugin has no command '{plain(command)}'.")
+    }
+}
+
+/// Tab completion for the argument being typed (the last of `args`).
+pub fn suggest(warps: Warps, sender: Sender, command: str, args: [str]) -> [str] {
+    let typed = if args.len() > 0 {
+        args[args.len() - 1]
+    } else {
+        ""
+    }
+    if args.len() > 1 {
+        return []
+    }
+    return match command {
+        "greet" => startingWith(playerNames(), typed)
+        "whois" => startingWith(playerNames(), typed)
+        "heal" => startingWith(playerNames(), typed)
+        "msg" => startingWith(playerNames(), typed)
+        "warp" => startingWith(warps.byName.keys(), typed)
+        "delwarp" => startingWith(warps.byName.keys(), typed)
+        "kit" => startingWith(kitNames(sender), typed)
+        _ => []
+    }
+}

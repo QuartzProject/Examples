@@ -1,0 +1,29 @@
+# Kits for /kit. Materials, enchantments and armour slots (head, chest, legs, feet) use Minecraft's names;
+# cooldowns are durations such as 90s, 5m or 1h30m.
+
+[[kits]]
+name = "starter"
+description = "iron gear and food"
+cooldown = "5m"
+items = [
+    { material = "iron_sword", enchant = "sharpness", level = 1 },
+    { material = "cooked_beef", amount = 16 },
+    { material = "oak_planks", amount = 64 },
+]
+
+[kits.armor]
+head = { material = "iron_helmet" }
+chest = { material = "iron_chestplate" }
+legs = { material = "iron_leggings" }
+feet = { material = "iron_boots", enchant = "feather_falling", level = 2 }
+
+[[kits]]
+name = "builder"
+description = "blocks and tools"
+cooldown = "1h"
+permission = "quartzexample.kit.builder"
+items = [
+    { material = "stone_bricks", amount = 64 },
+    { material = "glass", amount = 32 },
+    { material = "diamond_pickaxe", enchant = "efficiency", level = 3 },
+]

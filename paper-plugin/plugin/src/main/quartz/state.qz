@@ -1,0 +1,38 @@
+// Everything the plugin remembers. The host saves these states to state.json and loads them back on start.
+package org.quartzlang.examples.paper.scripts
+
+import org.quartzlang.examples.paper.*
+
+@derive(Show)
+internal struct Spot {
+    world: str
+    x: float
+    y: float
+    z: float
+    yaw: float
+    pitch: float
+}
+
+internal state Homes {
+    byPlayer: Map<str, Spot>
+}
+
+internal state Warps {
+    byName: Map<str, Spot>
+}
+
+internal state Cooldowns {
+    lastKit: Map<str, int>
+}
+
+internal state Conversations {
+    lastFrom: Map<str, str>
+}
+
+internal fn here(p: Player) -> Spot {
+    return Spot(p.world(), p.x(), p.y(), p.z(), p.yaw() as float, p.pitch() as float)
+}
+
+internal fn travel(p: Player, s: Spot) -> bool {
+    return p.teleport(s.world, s.x, s.y, s.z, s.yaw as f32, s.pitch as f32)
+}

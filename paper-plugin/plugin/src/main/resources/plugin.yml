@@ -1,0 +1,16 @@
+name: QuartzExample
+version: ${version}
+main: org.quartzlang.examples.paper.QuartzExamplePlugin
+api-version: '26.3'
+description: Commands and listeners written in Quartz, compiled into the jar by Quartz Embed.
+permissions:
+  quartzexample.heal:
+    default: op
+  quartzexample.setwarp:
+    default: op
+  quartzexample.announce:
+    default: op
+  quartzexample.protected:
+    default: op
+  quartzexample.tnt:
+    default: op

@@ -1,0 +1,28 @@
+// heal: permissions, and acting on somebody other than the caller.
+package org.quartzlang.examples.paper.scripts
+
+import org.quartzlang.examples.paper.*
+
+internal fn heal(sender: Sender, args: [str]) {
+    if !allowed(sender, "quartzexample.heal") {
+        return
+    }
+    let target = if args.len() > 0 {
+        findPlayer(args[0])
+    } else if sender.isPlayer() {
+        sender.player()
+    } else {
+        null
+    }
+    if let p = target {
+        p.heal()
+        p.send("<green>You have been healed.")
+        if p.name() != sender.name() {
+            sender.send("<gray>Healed <white>{p.name()}")
+        }
+    } else if args.len() > 0 {
+        sender.send("<red>No player called <white>{plain(args[0])}</white> is online.")
+    } else {
+        sender.send("<red>Usage from the console: /heal <player>")
+    }
+}

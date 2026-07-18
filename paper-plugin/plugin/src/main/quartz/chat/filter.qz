@@ -1,0 +1,29 @@
+// The chat filter, a module of its own: Paper delivers chat on other threads, and this sandbox only sees chat.
+package org.quartzlang.examples.paper.chat
+
+import org.quartzlang.examples.paper.*
+import org.quartzlang.regex.*
+
+// Whole words only, any case, and letters spaced out or repeated still match.
+fn banned() -> [str] {
+    return ["i\\s*p", "c+\\s*r+\\s*a+\\s*c+\\s*k+"]
+}
+
+state Strikes {
+    byPlayer: Map<str, int>
+}
+
+/// The message to show, or null to drop it; links lose their scheme so they are not clickable.
+pub fn filter(strikes: Strikes, player: Player, message: str) -> str? {
+    for word in banned() {
+        let banned = compileRegex("(?i)\\b(?:{word})\\b").unwrap()
+        if banned.isMatch(message) {
+            let count = (strikes.byPlayer.get(player.uuid()) ?? 0) + 1
+            strikes.byPlayer[player.uuid()] = count
+            player.send("<red>That word is not welcome here. <gray>({count} so far)")
+            return null
+        }
+    }
+    let links = compileRegex("(?i)https?://").unwrap()
+    return links.replaceAll(message, "")
+}

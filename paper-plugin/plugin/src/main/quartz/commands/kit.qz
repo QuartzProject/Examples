@@ -1,0 +1,104 @@
+// kit: kits described in kits.toml, decoded into typed structs, with a cooldown kept in a Quartz state.
+package org.quartzlang.examples.paper.scripts
+
+import org.quartzlang.data.*
+import org.quartzlang.examples.paper.*
+import org.quartzlang.time
+
+@derive(Decode)
+struct KitItem {
+    material: str
+    amount: int = 1
+    enchant: str = ""
+    level: int = 1
+}
+
+@derive(Decode)
+struct Kit {
+    name: str
+    description: str = ""
+    cooldown: str = "5m"
+    permission: str = ""
+    items: [KitItem] = []
+    armor: Map<str, KitItem> = Map()
+}
+
+@derive(Decode)
+struct KitFile {
+    kits: [Kit] = []
+}
+
+fn loadKits() -> Result<[Kit], str> {
+    let text = dataFile("kits.toml") ?? ""
+    return match decodeToml::<KitFile>(text) {
+        Ok(file) => Ok(file.kits)
+        Err(e) => Err("kits.toml: {e}")
+    }
+}
+
+fn usable(sender: Sender, k: Kit) -> bool {
+    return k.permission == "" || sender.hasPermission(k.permission)
+}
+
+internal fn kitNames(sender: Sender) -> [str] {
+    return loadKits().unwrapOr([]).filter((k) => usable(sender, k)).map((k) => k.name)
+}
+
+internal fn kit(cooldowns: Cooldowns, sender: Sender, args: [str]) {
+    let kits = match loadKits() {
+        Ok(k) => k
+        Err(why) => {
+            log(why)
+            sender.send("<red>The kits file is broken; the console says why.")
+            return
+        }
+    }
+    let wanted = if args.len() > 0 {
+        args[0].lower()
+    } else {
+        ""
+    }
+    let found = kits.find((k) => k.name == wanted && usable(sender, k))
+    if found is null {
+        let names = kits.filter((k) => usable(sender, k)).map((k) => "<white>{k.name}</white> ({k.description})")
+        sender.send("<gray>Kits: {names.join(", ")}")
+        return
+    }
+    if let p = requirePlayer(sender, "carry a kit") {
+        give(cooldowns, p, found.unwrap())
+    }
+}
+
+fn give(cooldowns: Cooldowns, p: Player, k: Kit) {
+    let cooldown = match time.Duration.parse(k.cooldown) {
+        Ok(d) => d.toMillis()
+        Err(why) => {
+            log("kit {k.name}: bad cooldown: {why}")
+            0
+        }
+    }
+    let key = "{p.uuid()} {k.name}"
+    let now = nowMillis()
+    let last = cooldowns.lastKit.get(key) ?? 0
+    if last > 0 && now - last < cooldown {
+        let left = time.seconds((cooldown - (now - last) + 999) / 1000)
+        p.send("<red>Another <white>{k.name}</white> kit in <white>{left.toStr()}</white>.")
+        return
+    }
+    var missing: [str] = []
+    for item in k.items {
+        if !p.give(item.material, item.amount as i32, item.enchant, item.level as i32) {
+            missing.push(item.material)
+        }
+    }
+    for slot, item in k.armor {
+        if !p.equip(slot, item.material, item.enchant, item.level as i32) {
+            missing.push(item.material)
+        }
+    }
+    if missing.len() > 0 {
+        log("kit {k.name}: unknown items or slots {missing.join(", ")}")
+    }
+    cooldowns.lastKit[key] = now
+    p.send("<green>Kitted out with <white>{k.name}</white>.")
+}
