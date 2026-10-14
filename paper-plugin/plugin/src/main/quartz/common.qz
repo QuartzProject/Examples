@@ -3,14 +3,10 @@ package org.quartzlang.examples.paper.scripts
 
 import org.quartzlang.examples.paper.*
 
-internal fn findPlayer(name: str) -> Player? {
-    return onlinePlayers().find((p) => p.name().equalsIgnoreCase(name))
-}
-
 /// The player running the command, or null after telling a console sender it cannot do `what`.
 internal fn requirePlayer(sender: Sender, what: str) -> Player? {
-    if sender.isPlayer() {
-        return sender.player()
+    if let p = sender.player() {
+        return p
     }
     sender.send("<red>Only a player can {what}.")
     return null
@@ -29,10 +25,23 @@ internal fn joinFrom(args: [str], first: int) -> str {
     return args.slice(first, args.len()).join(" ")
 }
 
-internal fn startingWith(names: [str], prefix: str) -> [str] {
-    return names.filter((n) => n.lower().startsWith(prefix.lower()))
+/// The names that start with what is being typed, the last argument.
+internal fn completing(names: [str], args: [str]) -> [str] {
+    if args.len() > 1 {
+        return []
+    }
+    let typed = if args.len() == 1 {
+        args[0].lower()
+    } else {
+        ""
+    }
+    return names.filter((n) => n.lower().startsWith(typed))
 }
 
 internal fn playerNames() -> [str] {
-    return onlinePlayers().map((p) => p.name())
+    return onlinePlayers().map((p) => p.name)
+}
+
+fn suggestPlayers(args: [str]) -> [str] {
+    return completing(playerNames(), args)
 }

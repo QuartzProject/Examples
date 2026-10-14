@@ -18,8 +18,8 @@ pub fn filter(strikes: Strikes, player: Player, message: str) -> str? {
     for word in banned() {
         let banned = compileRegex("(?i)\\b(?:{word})\\b").unwrap()
         if banned.isMatch(message) {
-            let count = (strikes.byPlayer.get(player.uuid()) ?? 0) + 1
-            strikes.byPlayer[player.uuid()] = count
+            let count = (strikes.byPlayer.get(player.uuid) ?? 0) + 1
+            strikes.byPlayer[player.uuid] = count
             player.send("<red>That word is not welcome here. <gray>({count} so far)")
             return null
         }

@@ -1,12 +1,17 @@
 package org.quartzlang.examples.paper.host
 
 import org.bukkit.Bukkit
+import org.bukkit.entity.Player
 import org.quartzlang.embed.api.QuartzFunction
 
 /** What Quartz may ask of the server as a whole. */
 object Server {
     @QuartzFunction
-    fun onlinePlayers(): List<Player> = Bukkit.getOnlinePlayers().map { Player.of(it) }
+    fun onlinePlayers(): List<Player> = Bukkit.getOnlinePlayers().toList()
+
+    /** The online player with this name, ignoring case, or null. */
+    @QuartzFunction
+    fun playerNamed(name: String): Player? = Bukkit.getPlayerExact(name)
 
     @QuartzFunction
     fun broadcast(message: String) {

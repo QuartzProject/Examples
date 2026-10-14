@@ -3,16 +3,18 @@ package org.quartzlang.examples.paper.scripts
 
 import org.quartzlang.examples.paper.*
 
-internal fn greet(sender: Sender, args: [str]) {
+@command("greet", description = "Greets a player by name", suggest = suggestPlayers)
+fn greet(sender: Sender, args: [str]) {
     let who = if args.len() > 0 {
         plain(args[0])
     } else {
-        sender.name()
+        sender.name
     }
     sender.send("<green>Hello, <white>{who}</white>!")
 }
 
-internal fn info(sender: Sender) {
+@command("quartzinfo", description = "Reports what is running these commands")
+fn info(sender: Sender) {
     let lines = [
         "<gray>Runtime: <white>Quartz, sandboxed, {memoryUsed() / 1024} KiB in use",
         "<gray>Plugin: <white>QuartzExample {pluginVersion()}",
@@ -25,13 +27,14 @@ internal fn info(sender: Sender) {
     }
 }
 
-internal fn whois(sender: Sender, args: [str]) {
+@command("whois", description = "Tells you about a player", suggest = suggestPlayers)
+fn whois(sender: Sender, args: [str]) {
     let name = if args.len() > 0 {
         args[0]
     } else {
-        sender.name()
+        sender.name
     }
-    if let p = findPlayer(name) {
+    if let p = playerNamed(name) {
         describe(sender, p)
     } else {
         sender.send("<red>No player called <white>{plain(name)}</white> is online.")
@@ -39,16 +42,17 @@ internal fn whois(sender: Sender, args: [str]) {
 }
 
 fn describe(sender: Sender, p: Player) {
+    let here = p.spot()
     let lines = [
-        "<gray>Name: <white>{p.name()}",
-        "<gray>UUID: <white>{p.uuid()}",
-        "<gray>World: <white>{p.world()}",
-        "<gray>At: <white>{p.x().floor() as int} {p.y().floor() as int} {p.z().floor() as int}",
-        "<gray>Mode: <white>{p.gameMode()}",
-        "<gray>Health: <white>{p.health():.0}/{p.maxHealth():.0}",
-        "<gray>Food: <white>{p.food()}",
-        "<gray>Level: <white>{p.level()}",
-        "<gray>Ping: <white>{p.ping()}ms",
+        "<gray>Name: <white>{p.name}",
+        "<gray>UUID: <white>{p.uuid}",
+        "<gray>World: <white>{p.world}",
+        "<gray>At: <white>{here.x.floor() as int} {here.y.floor() as int} {here.z.floor() as int}",
+        "<gray>Mode: <white>{p.gameMode}",
+        "<gray>Health: <white>{p.health:.0}/{p.maxHealth:.0}",
+        "<gray>Food: <white>{p.food}",
+        "<gray>Level: <white>{p.level}",
+        "<gray>Ping: <white>{p.ping}ms",
     ]
     for line in lines {
         sender.send(line)

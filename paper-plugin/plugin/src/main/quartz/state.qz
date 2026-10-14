@@ -3,16 +3,6 @@ package org.quartzlang.examples.paper.scripts
 
 import org.quartzlang.examples.paper.*
 
-@derive(Show)
-internal struct Spot {
-    world: str
-    x: float
-    y: float
-    z: float
-    yaw: float
-    pitch: float
-}
-
 internal state Homes {
     byPlayer: Map<str, Spot>
 }
@@ -29,10 +19,13 @@ internal state Conversations {
     lastFrom: Map<str, str>
 }
 
-internal fn here(p: Player) -> Spot {
-    return Spot(p.world(), p.x(), p.y(), p.z(), p.yaw() as float, p.pitch() as float)
+/// How much the plugin remembers, for its log.
+pub struct Stats {
+    homes: int
+    warps: int
+    cooldowns: int
 }
 
-internal fn travel(p: Player, s: Spot) -> bool {
-    return p.teleport(s.world, s.x, s.y, s.z, s.yaw as f32, s.pitch as f32)
+pub fn stats(homes: Homes, warps: Warps, cooldowns: Cooldowns) -> Stats {
+    return Stats(homes.byPlayer.len(), warps.byName.len(), cooldowns.lastKit.len())
 }

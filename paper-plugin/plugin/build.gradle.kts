@@ -22,6 +22,11 @@ quartz {
     facadePackage = "org.quartzlang.examples.paper.quartz"
     moduleName = "example"
     warnings = QuartzSeverity.ERROR
+    // Paper's own classes are the handles; the bridge's extension functions are their methods in Quartz.
+    handle("Player", "org.bukkit.entity.Player")
+    handle("Sender", "org.bukkit.command.CommandSender")
+    // Their KDoc becomes the documentation of the generated interface.
+    hostSources.from(project(":bridge").file("src/main/kotlin"))
 }
 
 tasks.processResources {

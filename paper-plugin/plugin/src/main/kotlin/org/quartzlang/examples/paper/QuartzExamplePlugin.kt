@@ -1,19 +1,17 @@
 package org.quartzlang.examples.paper
 
-import io.papermc.paper.command.brigadier.BasicCommand
-import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
 import org.quartzlang.embed.QuartzEmbed
 import org.quartzlang.embed.QuartzScriptException
 import org.quartzlang.examples.paper.host.PluginHost
-import org.quartzlang.examples.paper.host.Sender
 import org.quartzlang.examples.paper.quartz.ChatQuartz
 import org.quartzlang.examples.paper.quartz.ExampleQuartz
+import org.quartzlang.jvm.Sandbox
 import java.io.File
 
-/** Wiring, and nothing else: the commands and listeners are in `src/main/quartz`. */
+/** Wiring, and nothing else: the commands and listeners are in `src/main/quartz`, found by their attributes. */
 class QuartzExamplePlugin : JavaPlugin() {
     private lateinit var scripts: ExampleQuartz
     private lateinit var chat: ChatQuartz
@@ -33,13 +31,16 @@ class QuartzExamplePlugin : JavaPlugin() {
         load(scripts.module().sandbox(), stateFile)
         load(chat.module().sandbox(), chatStateFile)
 
-        val names = scripts.commands().map { it.substringBefore('|') to it.substringAfter('|') }
+        val commands = scripts.module().functions("command").map { QuartzCommand(this, scripts.module(), it) }
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
-            names.forEach { (name, description) -> event.registrar().register(name, description, Command(name)) }
+            commands.forEach { event.registrar().register(it.name, it.description, it) }
         }
-        server.pluginManager.registerEvents(Listeners(this, scripts, chat), this)
+        val listeners = Listeners(this, scripts.module(), chat)
+        server.pluginManager.registerEvents(listeners, this)
         server.scheduler.runTaskTimer(this, Runnable { save() }, AUTOSAVE_TICKS, AUTOSAVE_TICKS)
-        logger.info("Quartz modules ${embed.modules()} running ${names.size} commands")
+        val stats = scripts.stats()
+        logger.info("Quartz modules ${embed.modules()}: ${commands.size} commands, ${listeners.handlers} listeners; " +
+            "remembering ${stats.homes()} homes, ${stats.warps()} warps and ${stats.cooldowns()} cooldowns")
     }
 
     override fun onDisable() {
@@ -48,16 +49,6 @@ class QuartzExamplePlugin : JavaPlugin() {
         scripts.close()
         chat.close()
     }
-
-    /** `run` and `suggest` take states, and the generated facade does not cover such functions yet. */
-    fun run(sender: CommandSender, command: String, args: List<String>) {
-        guard(sender, command) { scripts.module().invoke("run", Sender.of(sender), command, args) }
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    fun suggest(sender: CommandSender, command: String, args: List<String>): List<String> =
-        guard(sender, command) { scripts.module().invoke("suggest", Sender.of(sender), command, args) as List<String> }
-            ?: emptyList()
 
     fun <T> guard(sender: CommandSender, what: String, call: () -> T): T? = try {
         call()
@@ -73,17 +64,10 @@ class QuartzExamplePlugin : JavaPlugin() {
         chatStateFile.writeText(synchronized(chat) { chat.module().sandbox().exportState() })
     }
 
-    private fun load(sandbox: org.quartzlang.jvm.Sandbox, file: File) {
+    private fun load(sandbox: Sandbox, file: File) {
         if (file.isFile) {
             sandbox.importState(file.readText())
         }
-    }
-
-    private inner class Command(private val name: String) : BasicCommand {
-        override fun execute(source: CommandSourceStack, args: Array<String>) = run(source.sender, name, args.toList())
-
-        override fun suggest(source: CommandSourceStack, args: Array<String>): Collection<String> =
-            suggest(source.sender, name, args.toList())
     }
 
     private companion object {

@@ -3,17 +3,19 @@ package org.quartzlang.examples.paper.scripts
 
 import org.quartzlang.examples.paper.*
 
-internal fn setHome(homes: Homes, sender: Sender) {
+@command("sethome", description = "Remembers where you are standing")
+fn setHome(homes: Homes, sender: Sender) {
     if let p = requirePlayer(sender, "have a home") {
-        homes.byPlayer[p.uuid()] = here(p)
+        homes.byPlayer[p.uuid] = p.spot()
         p.send("<green>Home set.")
     }
 }
 
-internal fn home(homes: Homes, sender: Sender) {
+@command("home", description = "Takes you back to your home")
+fn home(homes: Homes, sender: Sender) {
     if let p = requirePlayer(sender, "go home") {
-        if let spot = homes.byPlayer.get(p.uuid()) {
-            if travel(p, spot) {
+        if let spot = homes.byPlayer.get(p.uuid) {
+            if p.teleport(spot) {
                 p.send("<green>Welcome home.")
             } else {
                 p.send("<red>Your home was in <white>{spot.world}</white>, which is gone.")
@@ -24,10 +26,11 @@ internal fn home(homes: Homes, sender: Sender) {
     }
 }
 
-internal fn delHome(homes: Homes, sender: Sender) {
+@command("delhome", description = "Forgets your home")
+fn delHome(homes: Homes, sender: Sender) {
     if let p = requirePlayer(sender, "forget a home") {
-        if homes.byPlayer.has(p.uuid()) {
-            homes.byPlayer.remove(p.uuid())
+        if homes.byPlayer.has(p.uuid) {
+            homes.byPlayer.remove(p.uuid)
             p.send("<gray>Home forgotten.")
         } else {
             p.send("<red>You have no home to forget.")
@@ -35,22 +38,21 @@ internal fn delHome(homes: Homes, sender: Sender) {
     }
 }
 
-internal fn setWarp(warps: Warps, sender: Sender, args: [str]) {
-    if !allowed(sender, "quartzexample.setwarp") {
-        return
-    }
+@command("setwarp", description = "Names the spot you are standing on", permission = "quartzexample.setwarp")
+fn setWarp(warps: Warps, sender: Sender, args: [str]) {
     if args.len() != 1 {
         sender.send("<red>Usage: /setwarp <name>, standing where it should lead.")
         return
     }
     if let p = requirePlayer(sender, "set a warp") {
         let name = args[0].lower()
-        warps.byName[name] = here(p)
+        warps.byName[name] = p.spot()
         p.send("<green>Warp <white>{plain(name)}</white> saved.")
     }
 }
 
-internal fn warp(warps: Warps, sender: Sender, args: [str]) {
+@command("warp", description = "Travels to a named warp, or lists them", suggest = suggestWarps)
+fn warp(warps: Warps, sender: Sender, args: [str]) {
     if args.len() == 0 {
         if warps.byName.len() == 0 {
             sender.send("<red>No warps have been set.")
@@ -62,7 +64,7 @@ internal fn warp(warps: Warps, sender: Sender, args: [str]) {
     let name = args[0].lower()
     if let spot = warps.byName.get(name) {
         if let p = requirePlayer(sender, "warp") {
-            if travel(p, spot) {
+            if p.teleport(spot) {
                 p.send("<green>Warped to <white>{plain(name)}")
             } else {
                 p.send("<red>That warp leads to <white>{spot.world}</white>, which is gone.")
@@ -73,14 +75,16 @@ internal fn warp(warps: Warps, sender: Sender, args: [str]) {
     }
 }
 
-internal fn delWarp(warps: Warps, sender: Sender, args: [str]) {
-    if !allowed(sender, "quartzexample.setwarp") {
-        return
-    }
+@command("delwarp", description = "Removes a warp", permission = "quartzexample.setwarp", suggest = suggestWarps)
+fn delWarp(warps: Warps, sender: Sender, args: [str]) {
     if args.len() != 1 || !warps.byName.has(args[0].lower()) {
         sender.send("<red>Usage: /delwarp <existing warp>")
         return
     }
     warps.byName.remove(args[0].lower())
     sender.send("<gray>Warp <white>{plain(args[0].lower())}</white> removed.")
+}
+
+fn suggestWarps(warps: Warps, args: [str]) -> [str] {
+    return completing(warps.byName.keys(), args)
 }

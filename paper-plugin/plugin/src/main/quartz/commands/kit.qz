@@ -40,11 +40,22 @@ fn usable(sender: Sender, k: Kit) -> bool {
     return k.permission == "" || sender.hasPermission(k.permission)
 }
 
-internal fn kitNames(sender: Sender) -> [str] {
-    return loadKits().unwrapOr([]).filter((k) => usable(sender, k)).map((k) => k.name)
+fn item(k: KitItem) -> Item {
+    return Item(k.material, k.amount as i32, k.enchant, k.level as i32)
 }
 
-internal fn kit(cooldowns: Cooldowns, sender: Sender, args: [str]) {
+fn slotNamed(name: str) -> Slot? {
+    return match name {
+        "head" => Slot.HEAD
+        "chest" => Slot.CHEST
+        "legs" => Slot.LEGS
+        "feet" => Slot.FEET
+        _ => null
+    }
+}
+
+@command("kit", description = "Hands you a kit from kits.toml", suggest = suggestKits)
+fn kit(cooldowns: Cooldowns, sender: Sender, args: [str]) {
     let kits = match loadKits() {
         Ok(k) => k
         Err(why) => {
@@ -69,6 +80,10 @@ internal fn kit(cooldowns: Cooldowns, sender: Sender, args: [str]) {
     }
 }
 
+fn suggestKits(sender: Sender, args: [str]) -> [str] {
+    return completing(loadKits().unwrapOr([]).filter((k) => usable(sender, k)).map((k) => k.name), args)
+}
+
 fn give(cooldowns: Cooldowns, p: Player, k: Kit) {
     let cooldown = match time.Duration.parse(k.cooldown) {
         Ok(d) => d.toMillis()
@@ -77,7 +92,7 @@ fn give(cooldowns: Cooldowns, p: Player, k: Kit) {
             0
         }
     }
-    let key = "{p.uuid()} {k.name}"
+    let key = "{p.uuid} {k.name}"
     let now = nowMillis()
     let last = cooldowns.lastKit.get(key) ?? 0
     if last > 0 && now - last < cooldown {
@@ -86,14 +101,15 @@ fn give(cooldowns: Cooldowns, p: Player, k: Kit) {
         return
     }
     var missing: [str] = []
-    for item in k.items {
-        if !p.give(item.material, item.amount as i32, item.enchant, item.level as i32) {
-            missing.push(item.material)
+    for i in k.items {
+        if !p.give(item(i)) {
+            missing.push(i.material)
         }
     }
-    for slot, item in k.armor {
-        if !p.equip(slot, item.material, item.enchant, item.level as i32) {
-            missing.push(item.material)
+    for name, i in k.armor {
+        let slot = slotNamed(name)
+        if slot is null || !p.equip(slot.unwrap(), item(i)) {
+            missing.push("{name}: {i.material}")
         }
     }
     if missing.len() > 0 {

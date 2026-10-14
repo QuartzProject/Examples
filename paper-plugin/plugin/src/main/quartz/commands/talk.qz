@@ -5,40 +5,39 @@ import org.quartzlang.examples.paper.*
 
 fn deliver(talk: Conversations, sender: Sender, recipient: Player, text: str) {
     let message = plain(text)
-    sender.send("<gray>to <white>{recipient.name()}<gray>: {message}")
-    recipient.send("<gray>from <white>{sender.name()}<gray>: {message}")
-    talk.lastFrom[recipient.name()] = sender.name()
+    sender.send("<gray>to <white>{recipient.name}<gray>: {message}")
+    recipient.send("<gray>from <white>{sender.name}<gray>: {message}")
+    talk.lastFrom[recipient.name] = sender.name
 }
 
-internal fn msg(talk: Conversations, sender: Sender, args: [str]) {
+@command("msg", description = "Writes privately to a player", suggest = suggestPlayers)
+fn msg(talk: Conversations, sender: Sender, args: [str]) {
     if args.len() < 2 {
         sender.send("<red>Usage: /msg <player> <message>")
         return
     }
-    if let recipient = findPlayer(args[0]) {
+    if let recipient = playerNamed(args[0]) {
         deliver(talk, sender, recipient, joinFrom(args, 1))
     } else {
         sender.send("<red>No player called <white>{plain(args[0])}</white> is online.")
     }
 }
 
-internal fn reply(talk: Conversations, sender: Sender, args: [str]) {
+@command("r", description = "Answers whoever wrote to you last")
+fn reply(talk: Conversations, sender: Sender, args: [str]) {
     if args.len() == 0 {
         sender.send("<red>Usage: /r <message>")
         return
     }
-    let last = talk.lastFrom.get(sender.name()) ?? ""
-    if let recipient = findPlayer(last) {
+    if let recipient = playerNamed(talk.lastFrom.get(sender.name) ?? "") {
         deliver(talk, sender, recipient, joinFrom(args, 0))
     } else {
         sender.send("<red>Nobody is waiting for an answer.")
     }
 }
 
-internal fn announce(sender: Sender, args: [str]) {
-    if !allowed(sender, "quartzexample.announce") {
-        return
-    }
+@command("announce", description = "Broadcasts a coloured message", permission = "quartzexample.announce")
+fn announce(sender: Sender, args: [str]) {
     if args.len() == 0 {
         sender.send("<red>Usage: /announce <message>")
         return
