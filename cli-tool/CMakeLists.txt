@@ -11,4 +11,5 @@ set(QUARTZ_EMBED_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Embed" CACHE PATH "
 list(APPEND CMAKE_MODULE_PATH "${QUARTZ_EMBED_SOURCE_DIR}/cmake")
 include(QuartzEmbed)
 
-quartz_add_executable(qlog SOURCES src/main.qz src/formats.qz src/report.qz KITS terminal fs process DENY_WARNINGS)
+# qlog may read the log files its user names, wherever they are, and nothing else outside the working directory.
+quartz_add_executable(qlog SOURCES src/main.qz src/formats.qz src/report.qz DENY_WARNINGS GRANT_ARGUMENT_PATHS)

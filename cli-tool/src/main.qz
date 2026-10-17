@@ -146,9 +146,9 @@ fn loadFormats(o: Options) -> Result<[Format], str> {
     var specs = builtinFormats()
     let path = o.config ?? "qlog.toml"
     if o.config != null || fs.isFile(path) {
-        let text = fs.readText(path) ?? ""
-        if !fs.isFile(path) {
-            return Err("{path}: no such file")
+        let text = match fs.readText(path) {
+            Ok(t) => t
+            Err(why) => return Err(why)
         }
         match readFormatFile(text) {
             Ok(extra) => specs.insertAll(0, extra)
@@ -158,7 +158,7 @@ fn loadFormats(o: Options) -> Result<[Format], str> {
     return compileFormats(specs)
 }
 
-fn readInput(name: str) -> str? {
+fn readInput(name: str) -> Result<str, str> {
     if name != "-" {
         return fs.readText(name)
     }
@@ -170,7 +170,7 @@ fn readInput(name: str) -> str? {
             break
         }
     }
-    return lines.join("\n")
+    return Ok(lines.join("\n"))
 }
 
 fn choose(o: Options, formats: [Format], lines: [str]) -> Result<Format, str> {
@@ -198,17 +198,14 @@ fn analyze(o: Options) -> int {
     var tally = newTally()
     var failed = false
     for name in o.files {
-        if name.startsWith("/") || name.split("/").contains("..") {
-            eprintln("qlog: {name}: only files under the current directory can be read")
-            failed = true
-            continue
+        let lines = match readInput(name) {
+            Ok(text) => text.split("\n")
+            Err(why) => {
+                eprintln("qlog: {why}")
+                failed = true
+                continue
+            }
         }
-        if name != "-" && !fs.isFile(name) {
-            eprintln("qlog: {name}: no such file")
-            failed = true
-            continue
-        }
-        let lines = (readInput(name) ?? "").split("\n")
         let format = match choose(o, formats, lines) {
             Ok(f) => f
             Err(why) => {
