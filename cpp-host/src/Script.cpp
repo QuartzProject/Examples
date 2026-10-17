@@ -1,5 +1,6 @@
 #include "Script.hpp"
 
+#include "quartz/Bind.hpp"
 #include "quartz/Quartz.hpp"
 
 #include <algorithm>
@@ -55,6 +56,25 @@ bool setter(HostCall& call, void* user) {
 
 double clampTo(double v, int limit) { return std::clamp(v, 0.0, static_cast<double>(limit - 1)); }
 
+using EntityHandle = quartz::HandleOf<"Entity">;
+
+EntityHandle player(World* world) { return {world->player().id}; }
+
+void despawn(HostCall& call, World* world, EntityHandle handle) {
+    Entity* e = world->find(handle.id);
+    if (e == nullptr) {
+        call.error = std::format("no entity has handle {}", handle.id);
+    } else if (e->kind != "player") {
+        e->alive = false;
+    }
+}
+
+std::int64_t count(World* world, std::string_view kind) { return world->count(kind); }
+
+double width(World* world) { return world->width(); }
+
+double height(World* world) { return world->height(); }
+
 } // namespace
 
 Script::Script(World& world, std::filesystem::path interface, std::filesystem::path source, std::int64_t fuel)
@@ -93,13 +113,6 @@ void Script::bindHost(quartz::vm::Sandbox& sandbox) {
         "Entity.say",
         setter<[](World&, Entity& e, const Slot& v) { std::println("  {}#{} says: {}", e.kind, e.id, text(v)); }>, w);
     sandbox.bind(
-        "player",
-        [](HostCall& c, void* user) {
-            c.result.u = worldOf(user).player().id;
-            return true;
-        },
-        w);
-    sandbox.bind(
         "spawn",
         [](HostCall& c, void* user) {
             World& world = worldOf(user);
@@ -113,37 +126,15 @@ void Script::bindHost(quartz::vm::Sandbox& sandbox) {
             return true;
         },
         w);
-    sandbox.bind(
-        "despawn",
-        [](HostCall& c, void* user) {
-            Entity* e = entityArg(c, user);
-            if (e != nullptr && e->kind != "player") {
-                e->alive = false;
-            }
-            return e != nullptr;
-        },
-        w);
-    sandbox.bind(
-        "count",
-        [](HostCall& c, void* user) {
-            c.result.i = worldOf(user).count(text(c.args[0]));
-            return true;
-        },
-        w);
-    sandbox.bind(
-        "width",
-        [](HostCall& c, void* user) {
-            c.result.f = worldOf(user).width();
-            return true;
-        },
-        w);
-    sandbox.bind(
-        "height",
-        [](HostCall& c, void* user) {
-            c.result.f = worldOf(user).height();
-            return true;
-        },
-        w);
+    // Typed bindings: the C++ signature is checked against the interface, and the world comes as the user pointer.
+    for (auto bound :
+         {quartz::bind<&player>(sandbox, "player", &world_), quartz::bind<&despawn>(sandbox, "despawn", &world_),
+          quartz::bind<&count>(sandbox, "count", &world_), quartz::bind<&width>(sandbox, "width", &world_),
+          quartz::bind<&height>(sandbox, "height", &world_)}) {
+        if (!bound) {
+            report("bind", bound.error());
+        }
+    }
 }
 
 bool Script::load() {
