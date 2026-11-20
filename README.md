@@ -31,13 +31,16 @@ Each one is explained in the [Examples chapter](https://quartzlang.org/docs/exam
 
 ## Building
 
-The builds look for checkouts of [Quartz](https://github.com/QuartzProject/Quartz) and
-[Embed](https://github.com/QuartzProject/Embed) next to this repository. The native examples need Clang with C++23,
-CMake 3.28+ and Ninja; the Paper plugin needs a JDK 25.
+The native examples need Clang with C++23, CMake 3.28+, Ninja and the sources of
+[Quartz](https://github.com/QuartzProject/Quartz), given with `-DQUARTZ_SOURCE_DIR`:
 
 ```bash
-cmake -S cpp-host -B build/arena -G Ninja && cmake --build build/arena
+cmake -S cpp-host -B build/arena -G Ninja -DQUARTZ_SOURCE_DIR=<Quartz sources>
+cmake --build build/arena
 ```
+
+The Paper plugin needs a JDK 25 and the sources of [Embed](https://github.com/QuartzProject/Embed), given with
+`-Pquartz.embed`.
 
 ## License
 
